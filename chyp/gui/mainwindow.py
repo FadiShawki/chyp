@@ -217,10 +217,6 @@ class MainWindow(QMainWindow):
         if self.active_editor:
             self.active_editor.code_view.redo()
 
-    def show_errors(self) -> None:
-        if self.active_editor:
-            self.active_editor.show_errors()
-
     def add_rewrite_step(self) -> None:
         if self.active_editor:
             self.active_editor.code_view.add_line_below("  = ? by ")
@@ -288,89 +284,12 @@ class MainWindow(QMainWindow):
         code_menu = menu.addMenu("&Code")
         view_menu = menu.addMenu("&View")
 
-        file_new = file_menu.addAction("&New")
-        file_new.triggered.connect(lambda: self.new())
-
-        file_open = file_menu.addAction("&Open")
-        file_open.setShortcut(QKeySequence(QKeySequence.StandardKey.Open))
-        file_open.triggered.connect(lambda: self.open())
-
         self.file_open_recent = file_menu.addMenu("Open &Recent")
         self.update_recent_files()
-
-        file_menu.addSeparator()
-
-        file_close = file_menu.addAction("&Close")
-        file_close.setShortcut(QKeySequence(QKeySequence.StandardKey.Close))
-        file_close.triggered.connect(lambda: self.close_tab())
-
-        file_save = file_menu.addAction("&Save")
-        file_save.setShortcut(QKeySequence(QKeySequence.StandardKey.Save))
-        file_save.triggered.connect(lambda: self.save())
-
-        file_save_as = file_menu.addAction("Save &As")
-        file_save_as.setShortcut(QKeySequence(QKeySequence.StandardKey.SaveAs))
-        file_save_as.triggered.connect(lambda: self.save_as())
-
-        file_menu.addSeparator()
-
-        file_exit = file_menu.addAction("E&xit")
-        file_exit.setShortcut(QKeySequence(QKeySequence.StandardKey.Quit))
-
-        app = QApplication.instance()
-        if app:
-            file_exit.triggered.connect(app.quit)
-
-        edit_undo = edit_menu.addAction("&Undo")
-        edit_undo.setShortcut(QKeySequence(QKeySequence.StandardKey.Undo))
-        edit_undo.triggered.connect(lambda: self.undo())
-
-        edit_redo = edit_menu.addAction("&Redo")
-        edit_redo.setShortcut(QKeySequence(QKeySequence.StandardKey.Redo))
-        edit_redo.triggered.connect(lambda: self.redo())
 
         # code_run = code_menu.addAction("&Run")
         # code_run.setShortcut(QKeySequence("Ctrl+R"))
         # code_run.triggered.connect(self.update_state)
-
-        code_show_errors = code_menu.addAction("Show &Errors")
-        code_show_errors.setShortcut(QKeySequence("F4"))
-        code_show_errors.triggered.connect(lambda: self.show_errors())
-
-        code_add_rewrite_step = code_menu.addAction("&Add Rewrite Step")
-        code_add_rewrite_step.setShortcut(QKeySequence("Ctrl+Return"))
-        code_add_rewrite_step.triggered.connect(lambda: self.add_rewrite_step())
-
-        code_add_rewrite_step = code_menu.addAction("&Repeat Rewrite Step")
-        code_add_rewrite_step.setShortcut(QKeySequence("Ctrl+Shift+Return"))
-        code_add_rewrite_step.triggered.connect(lambda: self.repeat_rewrite_step())
-
-        code_next_rewrite = code_menu.addAction("&Next Rewrite")
-        code_next_rewrite.setShortcut(QKeySequence("Ctrl+N"))
-        code_next_rewrite.triggered.connect(lambda: self.next_rewrite())
-
-        code_menu.addSeparator()
-
-        code_next_part = code_menu.addAction("Next &Part")
-        code_next_part.setShortcut(QKeySequence("Ctrl+J"))
-        code_next_part.triggered.connect(lambda: self.next_part())
-
-        code_previous_part = code_menu.addAction("Previous &Part")
-        code_previous_part.setShortcut(QKeySequence("Ctrl+K"))
-        code_previous_part.triggered.connect(lambda: self.previous_part())
-
-        view_next_tab = view_menu.addAction("&Next Tab")
-        view_next_tab.setShortcut(QKeySequence("Ctrl+]"))
-        view_next_tab.triggered.connect(lambda: self.next_tab())
-
-        view_previous_tab = view_menu.addAction("&Previous Tab")
-        view_previous_tab.setShortcut(QKeySequence("Ctrl+["))
-        view_previous_tab.triggered.connect(lambda: self.previous_tab())
-
-        view_menu.addSeparator()
-        view_goto_import = view_menu.addAction("&Go To Import")
-        view_goto_import.setShortcut(QKeySequence("Ctrl+G"))
-        view_goto_import.triggered.connect(lambda: self.goto_import())
 
         view_menu.addSeparator()
         self.view_themes = view_menu.addMenu("&Themes")

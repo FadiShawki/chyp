@@ -36,6 +36,8 @@ class Rule:
             raise RuleError("Outputs must match on LHS and RHS of rule "
                             + f'({self.rhs.codomain()} != {self.lhs.codomain()})')
         self.name = name
+
+        # Equiv is lhs->rhs implies rhs->lhs
         self.equiv = True # TODO support for non-equivalance (i.e. rewrite/partial order) rules
 
     def copy(self) -> Rule:
@@ -48,11 +50,3 @@ class Rule:
             name = '-' + self.name
 
         return Rule(self.rhs.copy(), self.lhs.copy(), name)
-
-    def is_left_linear(self) -> bool:
-        """Returns True if boundary on lhs embeds injectively"""
-        verts = set()
-        for v in itertools.chain(self.lhs.inputs(), self.lhs.outputs()):
-            if v in verts: return False
-            verts.add(v)
-        return True

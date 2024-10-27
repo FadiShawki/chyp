@@ -418,7 +418,7 @@ class Graph:
         """
         if strict:
             if (len(self.vertex_data(v).in_edges) > 0 or
-               len(self.vertex_data(v).out_edges) > 0):
+                    len(self.vertex_data(v).out_edges) > 0):
                 raise ValueError('Attempting to remove vertex with adjacent'
                                  + 'edges while strict == True.')
             if (v in self.inputs() or v in self.outputs()):
@@ -892,7 +892,7 @@ class Graph:
                 # If both vertices have flexible types that are not equal,
                 # raise an error due to ambiguity.
                 if (data_1.infer_type and data_2.infer_type
-                   and data_1.vtype != data_2.vtype):
+                        and data_1.vtype != data_2.vtype):
                     raise GraphError(
                         'Ambiguous vertex type during composition.')
                 # Otherwise, if one vertex has a flexible type, ensure
@@ -906,7 +906,7 @@ class Graph:
                 # If both vertices have flexible sizes that are not equal,
                 # raise an error due to ambiguity.
                 if (data_1.infer_size and data_2.infer_size
-                   and data_1.size != data_2.size):
+                        and data_1.size != data_2.size):
                     raise GraphError(
                         'Ambiguous vertex size during composition.')
                 # Otherwise, if one vertex has a flexible size, ensure
@@ -1084,53 +1084,3 @@ def redistributer(domain: list[tuple[VType, int]],
                          + f'sum of codomain sizes ({codomain_size}).')
 
     return gen('_redistributer', domain, codomain)
-
-# def wide_id() -> Graph:
-#     return gen("id", 1, 1)
-
-# def id_perm(p: List[int]) -> Graph:
-#     g = Graph()
-#     size = len(p)
-#     inputs = [g.add_vertex(-1.5, i - (size-1)/2) for i in range(size)]
-#     outputs = [g.add_vertex(1.5, i - (size-1)/2) for i in range(size)]
-
-#     for i in range(size):
-#         y = i - (size-1)/2
-#         g.add_edge([inputs[i]], [outputs[p[i]]], "id", 0, y)
-
-#     g.set_inputs(inputs)
-#     g.set_outputs(outputs)
-
-#     return g
-
-
-def load_graph(path: str) -> Graph:
-    """Load a .chyp graph file from the given path."""
-
-    with open(path) as f:
-        g = graph_from_json(f.read())
-    return g
-
-
-def graph_from_json(json_string: str) -> Graph:
-    """Load a graph from the given JSON string."""
-
-    j = json.loads(json_string)
-    g = Graph()
-    for v, vd in j["vertices"].items():
-        g.add_vertex(x=float(vd["x"] if "x" in vd else 0.0),
-                     y=float(vd["y"] if "y" in vd else 0.0),
-                     value=vd["value"] if "value" in vd else "",
-                     name=int(v))
-    for e, ed in j["edges"].items():
-        g.add_edge(s=[int(v) for v in ed["s"]],
-                   t=[int(v) for v in ed["t"]],
-                   value=ed["value"] if "value" in ed else "",
-                   x=float(ed["x"]) if "x" in ed else 0.0,
-                   y=float(ed["y"]) if "y" in ed else 0.0,
-                   hyper=bool(ed["hyper"]) if "hyper" in ed else True,
-                   name=int(e))
-
-    g.set_inputs([int(v) for v in j["inputs"]])
-    g.set_outputs([int(v) for v in j["outputs"]])
-    return g

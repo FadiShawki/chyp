@@ -32,7 +32,7 @@ class Match:
     domain: Graph
     codomain: Graph
     vertex_map: dict[int, int]
-    vertex_image: set[int]
+    vertex_image: set[int] # TODO: Map can have duplicates in the codomain
     edge_map: dict[int, int]
     edge_image: set[int]
 
@@ -288,6 +288,7 @@ class Match:
         # A list of partial matches the same as this one,
         # but matching 1 more vertex or edge.
         extended_matches = []
+        # TODO: Adds a single vertex or edge and then rechecks is_total in `class Matches`
 
         # First, try to add an edge adjacent to any domain vertices
         # that have already been matched.
@@ -361,6 +362,9 @@ class Match:
         """Return whether the vertex and edge maps are surjective."""
         return (len(self.vertex_image) == self.codomain.num_vertices()
                 and len(self.edge_image) == self.codomain.num_edges())
+
+    def is_bijective(self) -> bool:
+        return self.is_injective() and self.is_surjective()
 
     def is_injective(self) -> bool:
         """Return whether the vertex and edge maps are injective."""
@@ -470,18 +474,6 @@ class Matches(Iterable):
         raise StopIteration
 
 
-def match_graph(domain: Graph, codomain: Graph,
-                convex: bool = True) -> Iterable[Match]:
-    """Return matches of domain into codomain."""
-    return Matches(domain, codomain, convex=convex)
-
-
-def match_rule(rule: Rule, graph: Graph,
-               convex: bool = True) -> Iterable[Match]:
-    """Return matches of the left side of `rule` into `graph`."""
-    return Matches(rule.lhs, graph, convex=convex)
-
-
 def find_iso(domain_graph: Graph, codomain_graph: Graph) -> Match | None:
     """Return an isomorphism between graphs g and h if found, otherwise `None`.
 
@@ -515,7 +507,7 @@ def find_iso(domain_graph: Graph, codomain_graph: Graph) -> Match | None:
     # of the domain graph into the codomain graph.
     for match in Matches(domain=domain_graph, codomain=codomain_graph,
                          initial_match=initial_match, convex=False):
-        if match.is_surjective():
+        if match.is_bijective():
             return match
 
     # If a total surjective match is not found, return `None`.

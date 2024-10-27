@@ -20,13 +20,13 @@ from .matcher import Match
 from .rule import Rule
 
 
-def dpo(r: Rule, m: Match) -> Iterable[Match]:
+def dpo(rule: Rule, match: Match) -> Iterable[Match]:
     """Do double-pushout rewriting
 
-    Given a rule r and match of r.lhs into a graph, return a match
-    of r.rhs into the rewritten graph.
+    Given a rule r and match of rule.lhs into a graph, return a match
+    of rule.rhs into the rewritten graph.
     """
-    # if not r.is_left_linear():
+    # if not rule.is_left_linear():
     #     raise NotImplementedError("Only left linear rules are supported for now")
 
     # store the vertices we have split for id's on the LHS
@@ -34,76 +34,70 @@ def dpo(r: Rule, m: Match) -> Iterable[Match]:
     out_map: Dict[int, int] = dict()
 
     # compute the pushout complement
-    ctx = m.codomain.copy()
-    for e in r.lhs.edges():
-        ctx.remove_edge(m.edge_map[e])
-    for v in r.lhs.vertices():
-        v1 = m.vertex_map[v]
-        if r.lhs.is_boundary(v):
-            in_c = len(r.lhs.vertex_data(v).in_indices)
-            out_c = len(r.lhs.vertex_data(v).out_indices)
-            if in_c == 1 and out_c == 1:
-                v1i, v1o = ctx.explode_vertex(v1)
-                if len(v1i) == 1 and len(v1o) == 1:
-                    in_map[v] = v1i[0]
-                    out_map[v] = v1o[0]
+    # TODO: Pushout complement: Anything not touched by the rule
+    def pushout_complement():
+        ctx = match.codomain.copy()
+        for e in rule.lhs.edges():
+            ctx.remove_edge(match.edge_map[e])
+            # TODO: Does not allow for dangling parts of edges (this I would want to support)
+
+        for v in rule.lhs.vertices():
+            v1 = match.vertex_map[v]
+            if not rule.lhs.is_boundary(v):
+                ctx.remove_vertex(v1)
+                continue
+
+            # TODO: Why does the LHS of the rule hold a boundary?
+
+            in_count = len(rule.lhs.vertex_data(v).in_indices)
+            out_count = len(rule.lhs.vertex_data(v).out_indices)
+            if in_count == 1 and out_count == 1:
+                input_vertices, output_vertices = ctx.explode_vertex(v1)
+                if len(input_vertices) == 1 and len(output_vertices) == 1:
+                    in_map[v] = input_vertices[0]
+                    out_map[v] = output_vertices[0]
                 else:
                     raise NotImplementedError("Rewriting modulo Frobenius not yet supported.")
-            elif in_c > 1 or out_c > 1:
+            elif in_count > 1 or out_count > 1:
                 raise NotImplementedError("Rewriting modulo Frobenius not yet supported.")
-        else:
-            ctx.remove_vertex(v1)
+        return ctx
 
-    # this will be the rewritten graph
-    h = ctx
+    h = pushout_complement()
 
-    # this will embed r.rhs into h
-    m1 = Match(r.rhs, h)
-    # vmap1: Dict[int,int] = {}
+    # this will embed rule.rhs into h
+    # TODO: Match is used separately here, and doesn't use any of match's functionality
+    result = Match(rule.rhs, h)
 
     # first map the inputs, using the matching of the lhs
-    for vl,vr in zip(r.lhs.inputs(), r.rhs.inputs()):
-        m1.vertex_map[vr] = in_map[vl] if vl in in_map else m.vertex_map[vl]
+    for vl,vr in zip(rule.lhs.inputs(), rule.rhs.inputs()):
+        result.vertex_map[vr] = in_map[vl] if vl in in_map else match.vertex_map[vl]
 
-    # next map the outputs. if the same vertex is an input and an output in r.rhs, then
+    # next map the outputs. if the same vertex is an input and an output in rule.rhs, then
     # merge them in h.
-    for vl,vr in zip(r.lhs.outputs(), r.rhs.outputs()):
-        vr1 = out_map[vl] if vl in out_map else m.vertex_map[vl]
-        if vr in m1.vertex_map:
-            h.merge_vertices(m1.vertex_map[vr], vr1)
+    for vl,vr in zip(rule.lhs.outputs(), rule.rhs.outputs()):
+        vr1 = out_map[vl] if vl in out_map else match.vertex_map[vl]
+        if vr in result.vertex_map:
+            h.merge_vertices(result.vertex_map[vr], vr1)
         else:
-            m1.vertex_map[vr] = vr1
+            result.vertex_map[vr] = vr1
 
     # then map the interior to new, fresh vertices
-    for v in r.rhs.vertices():
-        if not r.rhs.is_boundary(v):
-            vd = r.rhs.vertex_data(v)
+    for v in rule.rhs.vertices():
+        if not rule.rhs.is_boundary(v): # TODO; Boundaries are already mapped above
+            vd = rule.rhs.vertex_data(v)
             v1 = h.add_vertex(
                 vtype=vd.vtype, size=vd.size,
                 x=vd.x, y=vd.y, value=vd.value)
-            m1.vertex_map[v] = v1
-            m1.vertex_image.add(v1)
+            result.vertex_map[v] = v1
+            result.vertex_image.add(v1)
 
     # now add the edges from rhs to h and connect them using vmap1
-    for e in r.rhs.edges():
-        ed = r.rhs.edge_data(e)
-        e1 = h.add_edge([m1.vertex_map[v] for v in ed.s],
-                        [m1.vertex_map[v] for v in ed.t],
+    for e in rule.rhs.edges():
+        ed = rule.rhs.edge_data(e)
+        e1 = h.add_edge([result.vertex_map[v] for v in ed.s],
+                        [result.vertex_map[v] for v in ed.t],
                         ed.value, ed.x, ed.y, ed.fg, ed.bg, ed.hyper)
-        m1.edge_map[e] = e1
-        m1.edge_image.add(e1)
+        result.edge_map[e] = e1
+        result.edge_image.add(e1)
 
-    return [m1]
-
-def rewrite(r: Rule, m: Match) -> Graph:
-    """Apply the given rewrite r to at match m and return the first result
-
-    This is a convience wrapper for `dpo` for when the extra rewrite data
-    isn't needed."""
-
-    try:
-        result = next(iter(dpo(r, m)))
-        return result.codomain
-    except StopIteration:
-        raise RuntimeError("Rewrite has no valid context")
-
+    return [result]

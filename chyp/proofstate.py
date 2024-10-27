@@ -4,7 +4,7 @@ from typing import Dict, Iterator, List, Optional, Set, Tuple
 from .graph import Graph
 from .rewrite import dpo
 from .rule import Rule, RuleError
-from .matcher import Match, match_rule, find_iso
+from .matcher import Match, match_rule, find_iso, Matches
 from . import state
 
 RULE_NAME_RE = re.compile('(-)?\\s*([a-zA-Z_][\\.a-zA-Z0-9_]*)')
@@ -61,13 +61,10 @@ class ProofState:
     def num_goals(self) -> int:
         return len(self.goals)
 
-    def has_goal(self, i:int=0) -> bool:
-        return len(self.goals) > i
-
     def global_rules(self) -> List[str]:
         return [name for name, j in self.state.rule_sequence.items() if j <= self.sequence]
 
-    def lookup_rule(self, rule_expr: str, goal_i:int=0, local: Optional[bool]=None) -> Tuple[Optional[Rule],bool]:
+    def lookup_rule(self, rule_expr: str, goal_i:int=0, local: Optional[bool]=None) -> Optional[Rule]:
         """Lookup a rule
 
         This takes a rule expression, which is a rule name preceeded optionally by '-', and attempts
@@ -83,12 +80,10 @@ class ProofState:
         indicates that the converse of the rule should be returned.
         """
 
-        m = RULE_NAME_RE.match(rule_expr)
-        if not m:
-            self.error('Bad rule expression: ' + rule_expr)
-            return (None, False)
-        converse = m.group(1) == '-'
-        rule_name = m.group(2)
+
+        # TODO: Changed now that converses need to show up in the rule dictionaries, similarly other
+        # TODO: base transformations on rules, would need some equivalence class of possibilities.
+        rule_name = rule_expr
 
         loc = local is None or local == True
         glo = local is None or local == False
@@ -104,65 +99,32 @@ class ProofState:
             seq = self.state.rule_sequence[rule_name]
             if seq >= self.sequence:
                 self.error(f'Attempting to use rule {rule_name} before it is defined/proven ({seq} >= {self.sequence}).')
-                return (None, False)
+                return None
             rule = self.state.rules[rule_name]
 
         if not rule:
             self.error(f'Rule {rule_name} not defined.')
-            return (None, False)
+            return None
 
-        if converse:
-            return (rule.converse(), True)
-        else:
-            return (rule.copy(), False)
+        return rule.copy()
 
-    def add_refl_to_context(self, graph: Graph, ident: str) -> None:
-        """Adds a trivial (reflexivity) rule to the local context, using the provided graph as LHS and RHS
-        """
-
-        rule = Rule(lhs=graph.copy(), rhs=graph.copy(), name=ident)
-        self.context[ident] = rule
-
-    def add_rule_to_context(self, rule_name: str, ident: str='') -> None:
+    def add_rule_to_context(self, rule_name: str) -> None:
         """Copies the given global rule into the local context, allowing it to be modified by the tactic
         """
-        if ident == '': ident = rule_name
-        rule, conv = self.lookup_rule(rule_name, local=False)
+        rule = self.lookup_rule(rule_name, local=False)
 
+        # TODO: Simply adds a global rule to a local context, wouldn't need the lookup here.
         if rule:
-            if conv and not rule.equiv:
-                self.error(f'Attempting to add converse of one-way rule {rule_name} to context.')
-            else:
-                self.context[ident] = rule
+            self.context[rule_name] = rule
 
-    def __lhs(self, target: str) -> Optional[Graph]:
+    def target_rule(self, target: str = ''):
         if target == '' and len(self.goals) > 0:
-            return self.goals[0].formula.lhs
+            return self.goals[0].formula
         elif target in self.context:
-            return self.context[target].lhs
+            return self.context[target]
         else:
             return None
 
-    def __rhs(self, target: str) -> Optional[Graph]:
-        if target == '' and len(self.goals) > 0:
-            return self.goals[0].formula.rhs
-        elif target in self.context:
-            return self.context[target].rhs
-        else:
-            return None
-    
-    def __set_lhs(self, target: str, graph: Graph) -> None:
-        if target == '' and len(self.goals) > 0:
-            self.goals[0].formula.lhs = graph
-        elif target in self.context:
-            self.context[target].lhs = graph
-
-    def __set_rhs(self, target: str, graph: Graph) -> None:
-        if target == '' and len(self.goals) > 0:
-            self.goals[0].formula.rhs = graph
-        elif target in self.context:
-            self.context[target].rhs = graph
-    
     def replace_lhs(self, new_lhs: Graph) -> None:
         """Replace the LHS of the top goal with the given graph
 
@@ -172,7 +134,7 @@ class ProofState:
         """
         try:
             r = Rule(self.lhs(), new_lhs)
-            self.__set_lhs('', new_lhs)
+            self.target_rule().lhs = new_lhs
             g = self.goals[0].copy()
             g.formula = r
             self.goals.insert(0, g)
@@ -188,7 +150,7 @@ class ProofState:
         """
         try:
             r = Rule(self.rhs(), new_rhs)
-            self.__set_rhs('', new_rhs)
+            self.target_rule().rhs = new_rhs
             g = self.goals[0].copy()
             g.formula = r
             self.goals.insert(0, g)
@@ -202,24 +164,20 @@ class ProofState:
         rule in the local context.
         """
 
-        # variance is True if one-way rules should only be applied in the forward direction here and False
-        # if they should only be applied in the backward direction
-        variance = (target == '')
-
         # if not self.__goal_lhs: return None
-        rule, converse = self.lookup_rule(rule_expr)
+        rule = self.lookup_rule(rule_expr)
         if not rule: return None
-        if not rule.equiv and converse == variance:
-            self.error(f'Attempting to use converse of rule {rule_expr} without proof.')
+
+        if not self.target_rule(target).lhs:
             return None
 
-        target_graph = self.__lhs(target)
-        if not target_graph:
-            return None
-
-        for m_g in match_rule(rule, target_graph):
+        # TODO: Rewrites all matches of that rule
+        # TODO: - What if there are multiple matches?
+        #           - How to select which one is applied?
+        #           - What if there's genuine overlap? (Now rewriting might hide possible matches)
+        for m_g in Matches(rule.lhs, self.target_rule(target).lhs):
             for m_h in dpo(rule, m_g):
-                self.__set_lhs(target, m_h.codomain.copy())
+                self.target_rule(target).lhs = m_h.codomain.copy()
                 yield (m_g, m_h)
 
     def rewrite_rhs(self, rule_expr: str, target: str='') -> Iterator[Tuple[Match,Match]]:
@@ -229,24 +187,17 @@ class ProofState:
         rule in the local context.
         """
 
-        # variance is True if one-way rules should only be applied in the forward direction here and False
-        # if they should only be applied in the backward direction
-        variance = (target != '')
-
         # if not self.__goal_rhs: return None
-        rule, converse = self.lookup_rule(rule_expr)
+        rule = self.lookup_rule(rule_expr)
         if not rule: return None
-        if not rule.equiv and converse == variance:
-            self.error(f'Attempting to use converse of rule {rule_expr} without proof.')
-            return None
 
-        target_graph = self.__rhs(target)
+        target_graph = self.target_rule(target).rhs
         if not target_graph:
             return None
 
-        for m_g in match_rule(rule, target_graph):
+        for m_g in Matches(rule.lhs, target_graph):
             for m_h in dpo(rule, m_g):
-                self.__set_rhs(target, m_h.codomain.copy())
+                self.target_rule(target).rhs = m_h.codomain.copy()
                 yield (m_g, m_h)
 
     def rewrite_lhs1(self, rule_expr: str, target: str='') -> bool:
@@ -259,6 +210,7 @@ class ProofState:
             return True
         return False
 
+    # TODO Instead of rewriting the goal, goal should be a path to rewrite both LHS & RHS into the same state.
 
     def validate_goal(self, i:int=0) -> Optional[Match]:
         if i >= 0 and i < len(self.goals):
@@ -268,7 +220,6 @@ class ProofState:
             #     self.__local_state.status = state.Part.VALID
             #     return iso
         return None
-
     def try_close_goal(self, i:int=0) -> bool:
         if i >= 0 and i < len(self.goals):
             g = self.goals[i]
@@ -278,18 +229,18 @@ class ProofState:
         return False
 
 
-    def lhs(self, target: str='') -> Optional[Graph]:
-        g = self.__lhs(target)
+    def lhs(self) -> Optional[Graph]:
+        g = self.target_rule().lhs
         return g.copy() if g else None
 
-    def rhs(self, target: str='') -> Optional[Graph]:
-        g = self.__rhs(target)
+    def rhs(self) -> Optional[Graph]:
+        g = self.target_rule().rhs
         return g.copy() if g else None
 
-    def lhs_size(self, target: str='') -> int:
-        g = self.__lhs(target)
+    def lhs_size(self) -> int:
+        g = self.target_rule().lhs
         return g.num_edges() + g.num_vertices() if g else 0
 
-    def rhs_size(self, target: str='') -> int:
-        g = self.__rhs(target)
+    def rhs_size(self) -> int:
+        g = self.target_rule().rhs
         return g.num_edges() + g.num_vertices() if g else 0

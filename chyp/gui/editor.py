@@ -30,7 +30,6 @@ from . import mainwindow
 from .colors import current_theme
 from .errorlistmodel import ErrorListModel
 from .proofstatemodel import ProofStateModel
-from .graphview import GraphView
 from .codeview import CodeView
 from .document import ChypDocument
 # from .. import state
@@ -123,7 +122,6 @@ class Editor(QWidget):
     def invalidate_text(self) -> None:
         self.parsed = False
         self.state.set_current_part(None)
-        self.code_view.state_changed()
         self.revision += 1
 
         def update(r: int) -> Callable:
@@ -169,27 +167,6 @@ class Editor(QWidget):
                 err = model.errors[i]
                 window.open(err[0], line_number=err[1])
 
-    def show_errors(self) -> None:
-        conf = QSettings('chyp', 'chyp')
-        error_panel_size = conf.value('error_panel_size', 100)
-        if isinstance(error_panel_size, str):
-            error_panel_size = int(error_panel_size)
-        if not isinstance(error_panel_size, int) or error_panel_size == 0:
-            error_panel_size = 100
-        
-        sizes = self.splitter.sizes()
-        if sizes[2] == 0:
-            sizes[2] = error_panel_size
-            if sizes[1] >= error_panel_size + 50:
-                sizes[1] -= error_panel_size
-            else:
-                sizes[0] -= error_panel_size
-        else:
-            conf.setValue('error_panel_size', sizes[2])
-            sizes[1] += sizes[2]
-            sizes[2] = 0
-        self.splitter.setSizes(sizes)
-
     def update_proof_state(self, proof_state: Optional[proofstate.ProofState], status: int=Part.UNCHECKED) -> None:
         proof_state_model = cast(ProofStateModel, self.goal_view.model())
         proof_state_model.set_proof_state(proof_state)
@@ -213,7 +190,6 @@ class Editor(QWidget):
         pos = self.code_view.textCursor().position()
         part = self.state.part_at(pos)
         self.state.set_current_part(part)
-        self.code_view.state_changed()
         if not part: return
 
         if isinstance(part, ProofStepPart) and part.proof_state:
@@ -292,60 +268,29 @@ class Editor(QWidget):
 
     def update_state(self) -> None:
         self.code = self.doc.toPlainText()
-        def f() -> None:
-            self.show_at_cursor()
-            model = self.error_view.model()
-            if isinstance(model, ErrorListModel):
-                model.set_errors(self.state.errors)
-
-            num_errors = len(self.state.errors)
-            if num_errors == 0:
-                self.parsed = True
-                self.code_view.set_completions(self.state.rules.keys())
-                self.show_at_cursor()
-                self.tabs.setTabText(1, 'Errors')
-                self.tabs.tabBar().setTabTextColor(1, current_theme()['fg_button'])
-            else:
-                self.tabs.setTabText(1, f'Errors ({num_errors})')
-                self.tabs.tabBar().setTabTextColor(1, current_theme()['fg_bad'])
         self.show_at_cursor()
-        update = UpdateThread(self.revision, self)
-        update.finished.connect(f)
-        update.start()
 
-        
 
-    def import_at_cursor(self) -> str:
-        p = self.state.part_at(self.code_view.textCursor().position())
-        if p and isinstance(p, ImportPart):
-            return p.name
+
+        state = parser.parse(self.code, self.doc.file_name)
+        self.set_state(state)
+        checker.check(state)
+        self.show_at_cursor()
+
+
+
+        self.show_at_cursor()
+        model = self.error_view.model()
+        if isinstance(model, ErrorListModel):
+            model.set_errors(self.state.errors)
+
+        num_errors = len(self.state.errors)
+        if num_errors == 0:
+            self.parsed = True
+            self.code_view.set_completions(self.state.rules.keys())
+            self.show_at_cursor()
+            self.tabs.setTabText(1, 'Errors')
+            self.tabs.tabBar().setTabTextColor(1, current_theme()['fg_button'])
         else:
-            return ''
-
-class UpdateThread(QThread):
-    def __init__(self, revision: int, parent: Optional[QObject] = None) -> None:
-        super().__init__(parent)
-        self.revision = revision
-        if parent and isinstance(parent, Editor):
-            self.editor = parent
-
-    def run(self) -> None:
-        if not self.editor: return
-
-        state = parser.parse(self.editor.code, self.editor.doc.file_name)
-        state.revision = self.revision
-        if state.revision != self.editor.revision: return
-
-        def update_gui() -> None:
-            self.editor.show_at_cursor()
-        def gui_revision() -> int:
-            return self.editor.revision
-
-        self.editor.set_state(state)
-        timer = QTimer()
-        timer.setInterval(200)
-        timer.timeout.connect(update_gui)
-        timer.start()
-        checker.check(state, gui_revision)
-        timer.stop()
-
+            self.tabs.setTabText(1, f'Errors ({num_errors})')
+            self.tabs.tabBar().setTabTextColor(1, current_theme()['fg_bad'])

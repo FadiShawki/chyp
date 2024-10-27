@@ -39,9 +39,6 @@ class CodeView(QPlainTextEdit):
         self.completer.activated.connect(self.insert_completion)
         self.state: Optional[State] = None
 
-    def popup_visible(self) -> bool:
-        return self.completer.popup().isVisible()
-
     def set_completions(self, completions: Iterable[str]) -> None:
         self.completion_model.set_completions(completions)
 
@@ -105,13 +102,6 @@ class CodeView(QPlainTextEdit):
     #         self.blockSignals(True)
     #         doc.highlighter.set_current_region(region, status)
     #         self.blockSignals(False)
-    
-    def state_changed(self) -> None:
-        doc = self.document()
-        if isinstance(doc, ChypDocument):
-            self.blockSignals(True)
-            doc.highlighter.rehighlight()
-            self.blockSignals(False)
     
     def set_state(self, state: State) -> None:
         self.state = state

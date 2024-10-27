@@ -27,12 +27,10 @@ def next_rhs(state: State, part: RewritePart, term: str) -> Optional[str]:
     return t.next_rhs(term)
 
 
-def check(state: State, get_revision: Optional[Callable[[],int]]=None) -> None:
+def check(state: State) -> None:
     current_proof_state = None
     current_theorem_part = None
     for p in state.parts:
-        if get_revision and state.revision != get_revision(): break
-
         if isinstance(p, TheoremPart):
             p.status = Part.CHECKING
             current_theorem_part = p

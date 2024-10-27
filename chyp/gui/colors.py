@@ -118,32 +118,3 @@ for t in ('catppuccin_macchiato', 'catppuccin_latte'):
       'fg_string': PALETTES[t]['green']
     }
 
-def current_theme() -> Dict[str,str]:
-    conf = QSettings('chyp', 'chyp')
-
-    theme_name = conf.value('theme')
-    if not theme_name or not isinstance(theme_name, str):
-        theme_name = 'catppuccin_macchiato'
-
-    return THEMES[theme_name]
-
-def apply_theme() -> None:
-    theme = current_theme()
-
-    QApplication.setStyle("Fusion")
-    # Now use a palette to switch to theme colors:
-    palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor(theme['bg']))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(theme['fg']))
-    palette.setColor(QPalette.ColorRole.Base, QColor(theme['bg']))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(theme['bg_alt']))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(theme['fg']))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(theme['fg']))
-    palette.setColor(QPalette.ColorRole.Text, QColor(theme['fg']))
-    palette.setColor(QPalette.ColorRole.Button, QColor(theme['bg_button']))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(theme['fg_button']))
-    palette.setColor(QPalette.ColorRole.BrightText, QColor(theme['fg_bright']))
-    palette.setColor(QPalette.ColorRole.Link, QColor(theme['fg_link']))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor(theme['bg_highlight']))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(theme['fg_highlight']))
-    QApplication.setPalette(palette)

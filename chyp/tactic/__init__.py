@@ -66,13 +66,6 @@ class Tactic:
         if goal_i >= 0 and goal_i < len(self.proof_state.goals):
             self.proof_state.goals[goal_i].formula.lhs.highlight(vertices, edges)
 
-    # def __reset(self) -> None:
-    #     self.__errors.clear()
-    #     self.__context.clear()
-    #     self.__goal_lhs = self.__local_state.lhs.copy() if self.__local_state.lhs else None
-    #     self.__goal_rhs = self.__local_state.rhs.copy() if self.__local_state.rhs else None
-    #     # self.__goal_stack = []
-
     def next_rhs(self, current: str) -> Optional[str]:
         seen: Set[str] = set()
         seen = set([current])

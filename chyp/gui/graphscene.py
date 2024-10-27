@@ -184,6 +184,14 @@ class TItem(QGraphicsPathItem):
         self.setPath(path)
         self.update(-2000, -2000, 4000, 4000)
 
+class GraphView(QGraphicsView):
+    def __init__(self) -> None:
+        self.graph_scene = GraphScene()
+        super().__init__(self.graph_scene)
+
+    def set_graph(self, g: Graph) -> None:
+        self.graph_scene.set_graph(g)
+
 class GraphScene(QGraphicsScene):
     def __init__(self) -> None:
         super().__init__()
